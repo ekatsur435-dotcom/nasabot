@@ -291,72 +291,76 @@ def create_instagram_template(data, template='vertical'):
     
     # NAS-A HOMES Logo (position based on logo_position parameter)
     logo_url = data.get('logo_url', '')
-    logo_position = data.get('logo_position', 'bottom-right')
+    logo_position = data.get('logo_position', 'bottom-left')
     
+    # Calculate position based on logo_position
+    logo_margin = 30
+    logo_size = 100  # Размер круглого логотипа
+    text_offset = 110  # Отступ для текста от логотипа
+    
+    if logo_position == 'bottom-left':
+        logo_x = logo_margin
+        logo_y = HEIGHT - logo_size - logo_margin - 20
+        text_x = logo_x + text_offset
+        text_y = logo_y + 15
+    elif logo_position == 'top-left':
+        logo_x = logo_margin
+        logo_y = logo_margin
+        text_x = logo_x + text_offset
+        text_y = logo_y + 15
+    elif logo_position == 'top-right':
+        text_x = WIDTH - 250
+        text_y = logo_margin + 15
+        logo_x = text_x - text_offset
+        logo_y = logo_margin
+    elif logo_position == 'center':
+        logo_x = (WIDTH - logo_size) // 2 - 100
+        logo_y = (HEIGHT - logo_size) // 2
+        text_x = logo_x + text_offset
+        text_y = logo_y + 15
+    else:  # bottom-right (default)
+        text_x = WIDTH - 250
+        text_y = HEIGHT - logo_size - logo_margin + 15
+        logo_x = text_x - text_offset
+        logo_y = HEIGHT - logo_size - logo_margin - 20
+    
+    # Download and paste logo image
     if logo_url:
-        # Download and use logo image
         logo_img = download_logo(logo_url)
         if logo_img:
-            # Resize logo to max 120px width/height
-            logo_size = 120
+            # Resize logo to circle
+            logo_img = logo_img.convert('RGBA')
             logo_img.thumbnail((logo_size, logo_size), Image.LANCZOS)
             
-            # Calculate position based on logo_position
-            logo_margin = 30
-            if logo_position == 'bottom-left':
-                logo_x = logo_margin
-                logo_y = HEIGHT - logo_img.height - logo_margin
-            elif logo_position == 'top-left':
-                logo_x = logo_margin
-                logo_y = logo_margin
-            elif logo_position == 'top-right':
-                logo_x = WIDTH - logo_img.width - logo_margin
-                logo_y = logo_margin
-            elif logo_position == 'center':
-                logo_x = (WIDTH - logo_img.width) // 2
-                logo_y = (HEIGHT - logo_img.height) // 2
-            else:  # bottom-right (default)
-                logo_x = WIDTH - logo_img.width - logo_margin
-                logo_y = HEIGHT - logo_img.height - logo_margin
+            # Create circular mask
+            mask = Image.new('L', (logo_size, logo_size), 0)
+            mask_draw = ImageDraw.Draw(mask)
+            mask_draw.ellipse((0, 0, logo_size, logo_size), fill=255)
             
-            # Paste logo onto template
-            if logo_img.mode == 'RGBA':
-                template_img.paste(logo_img, (logo_x, logo_y), logo_img)
-            else:
-                template_img.paste(logo_img, (logo_x, logo_y))
-        else:
-            # Fallback to text if logo download fails
-            _draw_text_logo(draw, fonts, WIDTH, HEIGHT, logo_position)
-    else:
-        # Fallback to text logo
-        _draw_text_logo(draw, fonts, WIDTH, HEIGHT, logo_position)
+            # Apply circular mask
+            circular_logo = Image.new('RGBA', (logo_size, logo_size), (255, 255, 255, 0))
+            circular_logo.paste(logo_img, (0, 0))
+            circular_logo.putalpha(mask)
+            
+            # Paste onto template
+            template_img.paste(circular_logo, (logo_x, logo_y), circular_logo)
+    
+    # Draw NAS-A text next to logo
+    draw.text((text_x, text_y), "NAS-A", font=fonts['brand'], fill=WHITE)
+    bbox = draw.textbbox((text_x, text_y), "NAS-A", font=fonts['brand'])
+    homes_x = bbox[2] + 6
+    
+    # HOMES - red
+    draw.text((homes_x, text_y), "HOMES", font=fonts['brand'], fill=RED)
+    
+    # Subtitle
+    sub_y = text_y + 45
+    draw.text((text_x, sub_y), "REAL ESTATE & INVEST", font=fonts['brand_small'], fill=GRAY)
     
     # Convert to RGB for saving
     final_img = template_img.convert('RGB')
     
     return final_img
-
-def _draw_text_logo(draw, fonts, WIDTH, HEIGHT, logo_position):
-    """Draw text-based logo as fallback"""
-    logo_margin = 30
-    brand_x = logo_margin if 'left' in logo_position else WIDTH - 250
-    brand_y = HEIGHT - 100 if 'bottom' in logo_position else logo_margin
-    
-    if logo_position == 'center':
-        brand_x = WIDTH // 2 - 100
-        brand_y = HEIGHT // 2
-    
-    # NAS-A - white
-    draw.text((brand_x, brand_y), "NAS-A", font=fonts['brand'], fill=WHITE)
-    bbox = draw.textbbox((brand_x, brand_y), "NAS-A", font=fonts['brand'])
-    homes_x = bbox[2] + 6
-    
-    # HOMES - red
-    draw.text((homes_x, brand_y), "HOMES", font=fonts['brand'], fill=RED)
-    
-    # Subtitle
-    sub_y = brand_y + 45
-    draw.text((brand_x, sub_y), "REAL ESTATE & INVEST", font=fonts['brand_small'], fill=GRAY)
 
 @app.route('/generate', methods=['POST'])
 def generate():
