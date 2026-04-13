@@ -79,10 +79,10 @@ def create_gradient_overlay(width, height):
     overlay = Image.new('RGBA', (width, height), (0, 0, 0, 0))
     draw = ImageDraw.Draw(overlay)
     
-    # Gradient from bottom
+    # Gradient from bottom (dark at bottom for text/logo, transparent at top)
     for y in range(height):
-        alpha = int(180 * (y / height))
-        draw.line([(0, height - y - 1), (width, height - y - 1)], fill=(0, 0, 0, min(alpha, 180)))
+        alpha = int(180 * ((height - y) / height))  # Инвертировано: снизу темно, вверху прозрачно
+        draw.line([(0, y), (width, y)], fill=(0, 0, 0, min(alpha, 180)))
     
     return overlay
 
