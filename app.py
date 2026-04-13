@@ -75,14 +75,24 @@ def get_fonts(data=None):
     return fonts
 
 def create_gradient_overlay(width, height):
-    """Create gradient overlay for better text readability"""
+    """Create gradient overlay only at bottom (for logo and title area)"""
     overlay = Image.new('RGBA', (width, height), (0, 0, 0, 0))
     draw = ImageDraw.Draw(overlay)
     
-    # Gradient from bottom (dark at bottom for text/logo, transparent at top)
-    for y in range(height):
-        alpha = int(180 * ((height - y) / height))  # Инвертировано: снизу темно, вверху прозрачно
-        draw.line([(0, y), (width, y)], fill=(0, 0, 0, min(alpha, 180)))
+    # Gradient height - only bottom 350px area for logo and title
+    gradient_height = 350
+    
+    # Gradient from bottom: dark at very bottom, transparent at top of gradient area
+    for y in range(gradient_height):
+        alpha = int(200 * (y / gradient_height))  # снизу темно (200), к верху прозрачно
+        actual_y = height - gradient_height + y
+        draw.line([(0, actual_y), (width, actual_y)], fill=(0, 0, 0, min(alpha, 200)))
+    
+    # Additional dark area at very bottom for logo
+    bottom_area = 120
+    for y in range(bottom_area):
+        actual_y = height - bottom_area + y
+        draw.line([(0, actual_y), (width, actual_y)], fill=(0, 0, 0, 160))
     
     return overlay
 
