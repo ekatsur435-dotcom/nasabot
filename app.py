@@ -79,8 +79,8 @@ def create_gradient_overlay(width, height):
     overlay = Image.new('RGBA', (width, height), (0, 0, 0, 0))
     draw = ImageDraw.Draw(overlay)
     
-    # Gradient height - only bottom 350px area for logo and title
-    gradient_height = 350
+    # Gradient height - only bottom 370px area for logo and title (raised 20px)
+    gradient_height = 370
     
     # Gradient from bottom: dark at very bottom, transparent at top of gradient area
     for y in range(gradient_height):
@@ -337,8 +337,8 @@ def create_instagram_template(data, template='vertical'):
     
     # Calculate position based on logo_position
     logo_margin = 30
-    logo_size = 100  # Размер круглого логотипа
-    text_offset = 110  # Отступ для текста от логотипа
+    logo_size = 120  # Размер круглого логотипа (увеличен)
+    text_offset = 135  # Отступ для текста от логотипа (увеличен)
     
     if logo_position == 'bottom-left':
         logo_x = logo_margin
