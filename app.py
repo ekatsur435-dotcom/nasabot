@@ -333,6 +333,8 @@ def create_instagram_template(data, template='vertical'):
     
     # Convert to RGB for saving
     final_img = template_img.convert('RGB')
+    
+    return final_img
 
 def _draw_text_logo(draw, fonts, WIDTH, HEIGHT, logo_position):
     """Draw text-based logo as fallback"""
@@ -355,8 +357,6 @@ def _draw_text_logo(draw, fonts, WIDTH, HEIGHT, logo_position):
     # Subtitle
     sub_y = brand_y + 45
     draw.text((brand_x, sub_y), "REAL ESTATE & INVEST", font=fonts['brand_small'], fill=GRAY)
-    
-    return final_img
 
 @app.route('/generate', methods=['POST'])
 def generate():
