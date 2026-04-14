@@ -51,7 +51,7 @@ def get_fonts(data=None):
     try:
         font_size_top = int(data.get('font_size_top', '42px').replace('px', '')) if data else 42
         font_size_right = int(data.get('font_size_right', '42px').replace('px', '')) if data else 42
-        font_size_title = int(data.get('font_size_title', '39px').replace('px', '')) if data else 39
+        font_size_title = int(data.get('font_size_title', '47px').replace('px', '')) if data else 47
         font_size_price = int(data.get('font_size_price', '26px').replace('px', '')) if data else 26
     except:
         font_size_top = 30
@@ -292,8 +292,8 @@ def create_instagram_template(data, template='vertical'):
         )
         draw.text((dist_x + 10, right_badge_y + 8), dist_text, font=fonts['badge_right'], fill=WHITE)
     
-    # Bottom content - Title and Price (moved up by 36px total)
-    bottom_y = HEIGHT - 216  # Was 210, now 216 (6px higher)
+    # Bottom content - Title and Price (moved up by 56px total)
+    bottom_y = HEIGHT - 236  # Was 216, now 236 (20px higher)
     
     # Title (UPPERCASE)
     title = data.get('title', '').upper()
