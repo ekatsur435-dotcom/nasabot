@@ -146,6 +146,9 @@ def create_radial_gradient_logo(logo_img, size):
 def create_instagram_template(data, template='vertical'):
     """Create Instagram template with badges"""
     
+    # Check if we should apply full template or just resize
+    apply_template = data.get('apply_template', True)
+    
     # Set dimensions
     if template == 'vertical':
         WIDTH, HEIGHT = 1080, 1350
@@ -182,6 +185,12 @@ def create_instagram_template(data, template='vertical'):
         img = img.resize((new_width, new_height), Image.LANCZOS)
         top = (new_height - HEIGHT) // 2
         img = img.crop((0, top, WIDTH, top + HEIGHT))
+    
+    # If not applying template (other photos), just resize and return
+    if not apply_template:
+        # Convert to RGB for saving
+        final_img = img.convert('RGB')
+        return final_img
     
     # Create template with background
     template_img = Image.new('RGBA', (WIDTH, HEIGHT), (0, 0, 0, 0))
