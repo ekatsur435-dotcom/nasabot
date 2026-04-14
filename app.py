@@ -150,10 +150,12 @@ def create_instagram_template(data, template='vertical'):
     apply_template = data.get('apply_template', True)
     
     # Set dimensions
-    if template == 'vertical':
-        WIDTH, HEIGHT = 1080, 1350
+    if template == 'stories':
+        WIDTH, HEIGHT = 1080, 1920  # Instagram Stories 9:16
+    elif template == 'vertical':
+        WIDTH, HEIGHT = 1080, 1350  # 4:5 vertical
     else:  # square
-        WIDTH, HEIGHT = 1080, 1080
+        WIDTH, HEIGHT = 1080, 1080  # 1:1 square
     
     # Download background image
     image_url = data.get('image_url', '')
