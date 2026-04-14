@@ -319,8 +319,13 @@ def create_instagram_template(data, template='vertical'):
         if current_line and len(lines) < 2:
             lines.append(' '.join(current_line))
         
-        # Draw title lines
-        line_spacing = int(font_size_title * 1.15)  # 1.15 интервал
+        # Draw title lines with 1.15 line spacing
+        # Get actual font size from the large font
+        try:
+            font_size_large = fonts['large'].size
+        except:
+            font_size_large = 39
+        line_spacing = int(font_size_large * 1.15)  # 1.15 интервал
         line_y = bottom_y - (len(lines) - 1) * line_spacing
         for line in lines[:2]:  # Max 2 lines
             draw.text((MARGIN, line_y), line, font=fonts['large'], fill=WHITE)
