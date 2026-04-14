@@ -49,8 +49,8 @@ def get_fonts(data=None):
     
     # Parse font sizes from data or use defaults
     try:
-        font_size_top = int(data.get('font_size_top', '30px').replace('px', '')) if data else 30
-        font_size_right = int(data.get('font_size_right', '30px').replace('px', '')) if data else 30
+        font_size_top = int(data.get('font_size_top', '50px').replace('px', '')) if data else 50
+        font_size_right = int(data.get('font_size_right', '50px').replace('px', '')) if data else 50
         font_size_title = int(data.get('font_size_title', '33px').replace('px', '')) if data else 33
         font_size_price = int(data.get('font_size_price', '26px').replace('px', '')) if data else 26
     except:
@@ -68,7 +68,7 @@ def get_fonts(data=None):
         fonts['badge'] = ImageFont.truetype(font_path, font_size_right) if font_path else ImageFont.load_default()
         fonts['emoji'] = ImageFont.truetype(font_path, 26) if font_path else ImageFont.load_default()
         fonts['brand'] = ImageFont.truetype(font_path, 42) if font_path else ImageFont.load_default()
-        fonts['brand_small'] = ImageFont.truetype(font_path, 22) if font_path else ImageFont.load_default()
+        fonts['brand_small'] = ImageFont.truetype(font_path, 32) if font_path else ImageFont.load_default()
     except Exception:
         fonts = {k: ImageFont.load_default() for k in ['large', 'medium', 'small', 'badge', 'badge_top', 'badge_right', 'emoji', 'brand', 'brand_small']}
     
@@ -79,8 +79,8 @@ def create_gradient_overlay(width, height):
     overlay = Image.new('RGBA', (width, height), (0, 0, 0, 0))
     draw = ImageDraw.Draw(overlay)
     
-    # Gradient height - only bottom 370px area for logo and title (raised 20px)
-    gradient_height = 370
+    # Gradient height - only bottom 390px area for logo and title (raised 20px more)
+    gradient_height = 390
     
     # Gradient from bottom: dark at very bottom, transparent at top of gradient area
     for y in range(gradient_height):
@@ -292,11 +292,11 @@ def create_instagram_template(data, template='vertical'):
         )
         draw.text((dist_x + 10, right_badge_y + 8), dist_text, font=fonts['badge_right'], fill=WHITE)
     
-    # Bottom content - Title and Price (moved up by 20px to avoid logo overlap)
-    bottom_y = HEIGHT - 200  # Was 180, now 200 (20px higher)
+    # Bottom content - Title and Price (moved up by 30px total)
+    bottom_y = HEIGHT - 210  # Was 200, now 210 (10px higher)
     
-    # Title
-    title = data.get('title', '')
+    # Title (UPPERCASE)
+    title = data.get('title', '').upper()
     if title:
         # Wrap text if too long
         max_width = WIDTH - 2 * MARGIN - 200  # Leave space for logo
@@ -337,8 +337,8 @@ def create_instagram_template(data, template='vertical'):
     
     # Calculate position based on logo_position
     logo_margin = 30
-    logo_size = 120  # Размер круглого логотипа (увеличен)
-    text_offset = 135  # Отступ для текста от логотипа (увеличен)
+    logo_size = 140  # Размер круглого логотипа (увеличен больше)
+    text_offset = 155  # Отступ для текста от логотипа
     
     if logo_position == 'bottom-left':
         logo_x = logo_margin
@@ -384,9 +384,17 @@ def create_instagram_template(data, template='vertical'):
     # HOMES - red
     draw.text((homes_x, text_y), "HOMES", font=fonts['brand'], fill=RED)
     
-    # Subtitle (increased font size)
+    # Subtitle (increased font size +10px)
     sub_y = text_y + 45
     draw.text((text_x, sub_y), "REAL ESTATE & INVEST", font=fonts['brand_small'], fill=GRAY)
+    
+    # Phone number on the right (same size as brand)
+    phone = "+90 542 174 00 29"
+    phone_bbox = draw.textbbox((0, 0), phone, font=fonts['brand'])
+    phone_width = phone_bbox[2] - phone_bbox[0]
+    phone_x = WIDTH - logo_margin - phone_width
+    phone_y = text_y
+    draw.text((phone_x, phone_y), phone, font=fonts['brand'], fill=WHITE)
     
     # Convert to RGB for saving
     final_img = template_img.convert('RGB')
