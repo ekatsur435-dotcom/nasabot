@@ -8,12 +8,95 @@ import requests
 
 app = Flask(__name__)
 
+TG_BOT_TOKEN = os.environ.get("TG_BOT_TOKEN", "")
+TG_CHANNEL_ID = os.environ.get("TG_CHANNEL_ID", "")
+TG_WEBHOOK_SECRET = os.environ.get("TG_WEBHOOK_SECRET", "")
+
 # Colors
 WHITE = (255, 255, 255)
 RED = (220, 53, 69)
 GRAY = (170, 170, 170)
 GREEN_COLOR = (40, 167, 69)
 BLUE_COLOR = (0, 123, 255)
+
+def telegram_api(method, payload=None):
+    """Call Telegram Bot API."""
+    if not TG_BOT_TOKEN:
+        return {
+            "ok": False,
+            "error_code": 500,
+            "description": "TG_BOT_TOKEN is not configured",
+        }
+
+    url = f"https://api.telegram.org/bot{TG_BOT_TOKEN}/{method}"
+
+    try:
+        response = requests.post(url, json=payload or {}, timeout=30)
+        return response.json()
+    except Exception as e:
+        return {
+            "ok": False,
+            "error_code": 500,
+            "description": str(e),
+        }
+
+def telegram_send_message(chat_id, text, reply_to_message_id=None):
+    """Send Telegram text message."""
+    payload = {
+        "chat_id": chat_id,
+        "text": text,
+    }
+
+    if reply_to_message_id:
+        payload["reply_to_message_id"] = reply_to_message_id
+
+    return telegram_api("sendMessage", payload)
+
+def handle_telegram_command(command, chat_id, message_id):
+    """Handle simple Telegram commands."""
+    if command == "/start":
+        return telegram_send_message(
+            chat_id,
+            "NASA bot is online.\n\nAvailable commands:\n/start\n/help\n/test",
+            message_id,
+        )
+
+    if command == "/help":
+        return telegram_send_message(
+            chat_id,
+            "Commands:\n"
+            "/start - bot status\n"
+            "/help - command list\n"
+            "/test - test reply and optional channel delivery",
+            message_id,
+        )
+
+    if command == "/test":
+        lines = ["Bot reply: OK"]
+
+        if TG_CHANNEL_ID:
+            channel_result = telegram_send_message(
+                TG_CHANNEL_ID,
+                "NASA test: bot can post to the configured channel.",
+            )
+
+            if channel_result.get("ok"):
+                lines.append(f"Channel post to {TG_CHANNEL_ID}: OK")
+            else:
+                lines.append(
+                    "Channel post failed: "
+                    + channel_result.get("description", "unknown error")
+                )
+        else:
+            lines.append("TG_CHANNEL_ID is not configured.")
+
+        return telegram_send_message(chat_id, "\n".join(lines), message_id)
+
+    return telegram_send_message(
+        chat_id,
+        "Unknown command. Use /help",
+        message_id,
+    )
 
 def download_image(url):
     """Download image from URL"""
@@ -460,6 +543,43 @@ def generate():
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@app.route('/telegram/webhook', methods=['POST'])
+def telegram_webhook():
+    """Telegram webhook endpoint for basic bot commands."""
+    if TG_WEBHOOK_SECRET:
+        secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+        if secret != TG_WEBHOOK_SECRET:
+            return jsonify({"ok": False, "error": "invalid secret"}), 403
+
+    update = request.get_json(silent=True) or {}
+    message = update.get("message") or update.get("edited_message")
+
+    if not message:
+        return jsonify({"ok": True})
+
+    chat = message.get("chat") or {}
+    chat_id = chat.get("id")
+    message_id = message.get("message_id")
+    text = (message.get("text") or "").strip()
+
+    if not chat_id or not text.startswith("/"):
+        return jsonify({"ok": True})
+
+    command = text.split()[0].split("@")[0].lower()
+    handle_telegram_command(command, chat_id, message_id)
+
+    return jsonify({"ok": True})
+
+@app.route('/telegram/health', methods=['GET'])
+def telegram_health():
+    """Health check for Telegram configuration."""
+    return jsonify({
+        'status': 'ok',
+        'telegram_configured': bool(TG_BOT_TOKEN),
+        'channel_configured': bool(TG_CHANNEL_ID),
+        'webhook_secret_configured': bool(TG_WEBHOOK_SECRET),
+    })
 
 @app.route('/health', methods=['GET'])
 def health():
