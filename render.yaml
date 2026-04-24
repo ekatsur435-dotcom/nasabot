@@ -1,10 +1,16 @@
 services:
   - type: web
-    name: nasa-instagram-api
-    runtime: python
+    name: nasa-render-api
+    env: python
+    plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 60
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
-    plan: free
+      - key: TG_BOT_TOKEN
+        sync: false
+      - key: TG_CHANNEL_ID
+        sync: false
+      - key: TG_WEBHOOK_SECRET
+        sync: false
