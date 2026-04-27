@@ -587,12 +587,12 @@ def create_instagram_template(data, template='vertical'):
     sub_y = text_y + 45
     draw.text((text_x, sub_y), "REAL ESTATE & INVEST", font=fonts['brand_small'], fill=GRAY)
     
-    # Phone number - moved below subtitle to avoid overlap
+    # Phone number - moved below subtitle to avoid overlap with logo
     phone = "+90 542 174 00 29"
     phone_bbox = draw.textbbox((0, 0), phone, font=fonts['brand_small'])
     phone_width = phone_bbox[2] - phone_bbox[0]
     phone_x = WIDTH - logo_margin - phone_width
-    phone_y = sub_y  # Align with subtitle row
+    phone_y = sub_y + 25  # Below subtitle line
     draw.text((phone_x, phone_y), phone, font=fonts['brand_small'], fill=WHITE)
     
     # Convert to RGB for saving
