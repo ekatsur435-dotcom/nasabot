@@ -31,10 +31,6 @@ GRAY = (170, 170, 170)
 GREEN_COLOR = (40, 167, 69)
 BLUE_COLOR = (0, 123, 255)
 
-# Logo cache: {url: (image, timestamp)}
-_logo_cache = {}
-_LOGO_CACHE_TTL = 300  # 5 минут
-
 def telegram_api(method, payload=None):
     """Call Telegram Bot API."""
     if not TG_BOT_TOKEN:
@@ -253,24 +249,12 @@ def draw_text_with_emoji(draw, text, font, x, y, fill=(255, 255, 255)):
     draw.text((x, y), text, font=font, fill=fill)
 
 def download_logo(url):
-    """Download logo image from URL, with in-memory cache (TTL=5min)"""
-    import time
-    now = time.time()
-    if url in _logo_cache:
-        cached_img, ts = _logo_cache[url]
-        if now - ts < _LOGO_CACHE_TTL:
-            logger.info(f"Logo cache HIT: {url[:60]}...")
-            return cached_img.copy()
-        else:
-            del _logo_cache[url]
+    """Download logo image from URL"""
     try:
         logger.info(f"Downloading logo from: {url[:80]}...")
         response = requests.get(url, timeout=30)
         response.raise_for_status()
-        img = Image.open(BytesIO(response.content))
-        _logo_cache[url] = (img.copy(), now)
-        logger.info(f"Logo cached: {url[:60]}...")
-        return img
+        return Image.open(BytesIO(response.content))
     except Exception as e:
         logger.error(f"Error downloading logo: {e}")
         return None
@@ -637,7 +621,7 @@ def generate():
         # Generate template
         template_type = data.get('template', 'vertical')
         logger.info(f"Generating template: {template_type}")
-
+        
         img = create_instagram_template(data, template_type)
         
         if not img:
