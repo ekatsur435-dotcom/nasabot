@@ -1,10 +1,22 @@
 import os
 import tempfile
 import base64
+import logging
+import sys
 from io import BytesIO
 from flask import Flask, request, jsonify
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 import requests
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
@@ -22,6 +34,7 @@ BLUE_COLOR = (0, 123, 255)
 def telegram_api(method, payload=None):
     """Call Telegram Bot API."""
     if not TG_BOT_TOKEN:
+        logger.error("TG_BOT_TOKEN is not configured")
         return {
             "ok": False,
             "error_code": 500,
@@ -29,11 +42,18 @@ def telegram_api(method, payload=None):
         }
 
     url = f"https://api.telegram.org/bot{TG_BOT_TOKEN}/{method}"
+    logger.info(f"Telegram API call: {method} to chat_id: {payload.get('chat_id') if payload else 'N/A'}")
 
     try:
         response = requests.post(url, json=payload or {}, timeout=30)
-        return response.json()
+        result = response.json()
+        if not result.get('ok'):
+            logger.error(f"Telegram API error: {result}")
+        else:
+            logger.info(f"Telegram API success: {method}")
+        return result
     except Exception as e:
+        logger.error(f"Telegram API exception: {e}")
         return {
             "ok": False,
             "error_code": 500,
@@ -52,8 +72,44 @@ def telegram_send_message(chat_id, text, reply_to_message_id=None):
 
     return telegram_api("sendMessage", payload)
 
+def telegram_send_photo(chat_id, photo_url, caption=None, reply_to_message_id=None):
+    """Send Telegram photo."""
+    payload = {
+        "chat_id": chat_id,
+        "photo": photo_url,
+        "caption": caption[:1024] if caption else None,  # Telegram limit
+        "parse_mode": "HTML",
+    }
+
+    if reply_to_message_id:
+        payload["reply_to_message_id"] = reply_to_message_id
+
+    return telegram_api("sendPhoto", payload)
+
+def telegram_send_media_group(chat_id, photo_urls, caption=None):
+    """Send Telegram media group (carousel)."""
+    media = []
+    for i, url in enumerate(photo_urls):
+        item = {
+            "type": "photo",
+            "media": url,
+        }
+        if i == 0 and caption:
+            item["caption"] = caption[:1024]
+            item["parse_mode"] = "HTML"
+        media.append(item)
+
+    payload = {
+        "chat_id": chat_id,
+        "media": media,
+    }
+
+    return telegram_api("sendMediaGroup", payload)
+
 def handle_telegram_command(command, chat_id, message_id):
     """Handle simple Telegram commands."""
+    logger.info(f"Handling command: {command} from chat_id: {chat_id}")
+    
     if command == "/start":
         return telegram_send_message(
             chat_id,
@@ -101,11 +157,14 @@ def handle_telegram_command(command, chat_id, message_id):
 def download_image(url):
     """Download image from URL"""
     try:
+        logger.info(f"Downloading image from: {url[:80]}...")
         response = requests.get(url, timeout=30)
         response.raise_for_status()
-        return Image.open(BytesIO(response.content))
+        img = Image.open(BytesIO(response.content))
+        logger.info(f"Image downloaded: {img.size}")
+        return img
     except Exception as e:
-        print(f"Error downloading image: {e}")
+        logger.error(f"Error downloading image: {e}")
         return None
 
 def get_fonts(data=None):
@@ -125,22 +184,27 @@ def get_fonts(data=None):
     for path in font_paths:
         if os.path.exists(path):
             font_path = path
+            logger.info(f"Using font: {path}")
             break
     
     if not font_path:
+        logger.warning("No system font found, using default")
         font_path = None
     
     # Parse font sizes from data or use defaults
     try:
-        font_size_top = int(data.get('font_size_top', '42px').replace('px', '')) if data else 42
-        font_size_right = int(data.get('font_size_right', '42px').replace('px', '')) if data else 42
-        font_size_title = int(data.get('font_size_title', '47px').replace('px', '')) if data else 47
-        font_size_price = int(data.get('font_size_price', '26px').replace('px', '')) if data else 26
-    except:
+        font_size_top = int(str(data.get('font_size_top', '42px')).replace('px', '')) if data else 42
+        font_size_right = int(str(data.get('font_size_right', '42px')).replace('px', '')) if data else 42
+        font_size_title = int(str(data.get('font_size_title', '47px')).replace('px', '')) if data else 47
+        font_size_price = int(str(data.get('font_size_price', '26px')).replace('px', '')) if data else 26
+    except Exception as e:
+        logger.warning(f"Font parse error: {e}, using defaults")
         font_size_top = 30
         font_size_right = 30
         font_size_title = 33
         font_size_price = 26
+    
+    logger.info(f"Font sizes: top={font_size_top}, right={font_size_right}, title={font_size_title}, price={font_size_price}")
     
     try:
         fonts['large'] = ImageFont.truetype(font_path, font_size_title) if font_path else ImageFont.load_default()
@@ -152,7 +216,8 @@ def get_fonts(data=None):
         fonts['emoji'] = ImageFont.truetype(font_path, 26) if font_path else ImageFont.load_default()
         fonts['brand'] = ImageFont.truetype(font_path, 42) if font_path else ImageFont.load_default()
         fonts['brand_small'] = ImageFont.truetype(font_path, 32) if font_path else ImageFont.load_default()
-    except Exception:
+    except Exception as e:
+        logger.error(f"Font loading error: {e}, using defaults")
         fonts = {k: ImageFont.load_default() for k in ['large', 'medium', 'small', 'badge', 'badge_top', 'badge_right', 'emoji', 'brand', 'brand_small']}
     
     return fonts
@@ -186,11 +251,12 @@ def draw_text_with_emoji(draw, text, font, x, y, fill=(255, 255, 255)):
 def download_logo(url):
     """Download logo image from URL"""
     try:
+        logger.info(f"Downloading logo from: {url[:80]}...")
         response = requests.get(url, timeout=30)
         response.raise_for_status()
         return Image.open(BytesIO(response.content))
     except Exception as e:
-        print(f"Error downloading logo: {e}")
+        logger.error(f"Error downloading logo: {e}")
         return None
 
 def create_radial_gradient_logo(logo_img, size):
@@ -229,24 +295,44 @@ def create_radial_gradient_logo(logo_img, size):
 def create_instagram_template(data, template='vertical'):
     """Create Instagram template with badges"""
     
+    logger.info(f"create_instagram_template called with template={template}")
+    logger.info(f"Data keys: {list(data.keys())}")
+    
     # Check if we should apply full template or just resize
-    apply_template = data.get('apply_template', True)
+    # Handle both string and boolean values
+    apply_template_raw = data.get('apply_template', True)
+    if isinstance(apply_template_raw, str):
+        apply_template = apply_template_raw.lower() in ('true', '1', 'yes', 'on')
+    elif isinstance(apply_template_raw, (int, float)):
+        apply_template = bool(apply_template_raw)
+    else:
+        apply_template = bool(apply_template_raw)
+    
+    logger.info(f"apply_template raw={apply_template_raw}, parsed={apply_template}")
+    
+    # Debug badge data
+    logger.info(f"Badge data - label: '{data.get('label', '')}', city: '{data.get('city', '')}', type: '{data.get('property_type', '')}', status: '{data.get('property_status', '')}'")
     
     # Set dimensions
     if template == 'stories':
         WIDTH, HEIGHT = 1080, 1920  # Instagram Stories 9:16
+        logger.info("Using stories dimensions: 1080x1920")
     elif template == 'vertical':
         WIDTH, HEIGHT = 1080, 1350  # 4:5 vertical
+        logger.info("Using vertical dimensions: 1080x1350")
     else:  # square
         WIDTH, HEIGHT = 1080, 1080  # 1:1 square
+        logger.info("Using square dimensions: 1080x1080")
     
     # Download background image
     image_url = data.get('image_url', '')
     if not image_url:
+        logger.error("No image_url provided")
         return None
     
     img = download_image(image_url)
     if not img:
+        logger.error("Failed to download image")
         return None
     
     # Convert to RGBA
@@ -271,11 +357,16 @@ def create_instagram_template(data, template='vertical'):
         top = (new_height - HEIGHT) // 2
         img = img.crop((0, top, WIDTH, top + HEIGHT))
     
+    logger.info(f"Image resized to: {img.size}")
+    
     # If not applying template (other photos), just resize and return
     if not apply_template:
+        logger.info("apply_template=False, returning resized image only")
         # Convert to RGB for saving
         final_img = img.convert('RGB')
         return final_img
+    
+    logger.info("Applying full template with badges and logo")
     
     # Create template with background
     template_img = Image.new('RGBA', (WIDTH, HEIGHT), (0, 0, 0, 0))
@@ -292,48 +383,58 @@ def create_instagram_template(data, template='vertical'):
     
     MARGIN = 40
     
-    # Starting Y position for badges
-    badge_y = MARGIN
+    # Starting Y position for badges - moved down for better visibility
+    badge_y = MARGIN + 60  # Lower position to avoid top edge
+    
+    # Helper function to draw badge with shadow
+    def draw_badge_with_shadow(draw, x, y, width, height, fill_color, text, font, text_color=WHITE):
+        # Shadow (offset by 2px)
+        draw.rounded_rectangle(
+            [(x + 2, y + 2), (x + width + 2, y + height + 2)],
+            radius=8,
+            fill=(0, 0, 0, 128)
+        )
+        # Main badge
+        draw.rounded_rectangle(
+            [(x, y), (x + width, y + height)],
+            radius=8,
+            fill=fill_color
+        )
+        # Text
+        draw.text((x + 10, y + 8), text, font=font, fill=text_color)
     
     # 1. Label badge (green) - left side
     label = data.get('label', '')
     if label:
+        logger.info(f"Drawing label badge: {label}")
         badge_text = f" {label} "
         bbox = draw.textbbox((0, 0), badge_text, font=fonts['badge_top'])
         badge_width = bbox[2] - bbox[0] + 20
         badge_height = bbox[3] - bbox[1] + 16
         
-        draw.rounded_rectangle(
-            [(MARGIN, badge_y), (MARGIN + badge_width, badge_y + badge_height)],
-            radius=8,
-            fill=GREEN_COLOR
-        )
-        draw.text((MARGIN + 10, badge_y + 8), badge_text, font=fonts['badge_top'], fill=WHITE)
+        draw_badge_with_shadow(draw, MARGIN, badge_y, badge_width, badge_height, GREEN_COLOR, badge_text, fonts['badge_top'])
         
         badge_y = badge_y + badge_height + 10
     
     # 2. City badge (green) - under label
     city = data.get('city', '')
     if city:
+        logger.info(f"Drawing city badge: {city}")
         city_badge_text = f" {city} "
         bbox = draw.textbbox((0, 0), city_badge_text, font=fonts['badge_top'])
         city_badge_width = bbox[2] - bbox[0] + 20
         city_badge_height = bbox[3] - bbox[1] + 16
         
-        draw.rounded_rectangle(
-            [(MARGIN, badge_y), (MARGIN + city_badge_width, badge_y + city_badge_height)],
-            radius=8,
-            fill=GREEN_COLOR
-        )
-        draw.text((MARGIN + 10, badge_y + 8), city_badge_text, font=fonts['badge_top'], fill=WHITE)
+        draw_badge_with_shadow(draw, MARGIN, badge_y, city_badge_width, city_badge_height, GREEN_COLOR, city_badge_text, fonts['badge_top'])
     
     # Right side badges
-    right_badge_y = MARGIN
+    right_badge_y = MARGIN + 60  # Same lower position
     badge_spacing = 10
     
     # 3. Villa badge (blue)
     property_type = data.get('property_type', '')
     if property_type:
+        logger.info(f"Drawing property_type badge: {property_type}")
         villa_text = f" {property_type} "
         bbox = draw.textbbox((0, 0), villa_text, font=fonts['badge_right'])
         villa_width = bbox[2] - bbox[0] + 20
@@ -341,18 +442,14 @@ def create_instagram_template(data, template='vertical'):
         
         villa_x = WIDTH - MARGIN - villa_width
         
-        draw.rounded_rectangle(
-            [(villa_x, right_badge_y), (WIDTH - MARGIN, right_badge_y + villa_height)],
-            radius=8,
-            fill=BLUE_COLOR
-        )
-        draw.text((villa_x + 10, right_badge_y + 8), villa_text, font=fonts['badge_right'], fill=WHITE)
+        draw_badge_with_shadow(draw, villa_x, right_badge_y, villa_width, villa_height, BLUE_COLOR, villa_text, fonts['badge_right'])
         
         right_badge_y = right_badge_y + villa_height + badge_spacing
     
     # 4. Status badge (blue) - Sale/Rent
     property_status = data.get('property_status', '')
     if property_status:
+        logger.info(f"Drawing property_status badge: {property_status}")
         status_text = f" {property_status} "
         bbox = draw.textbbox((0, 0), status_text, font=fonts['badge_right'])
         status_width = bbox[2] - bbox[0] + 20
@@ -360,18 +457,14 @@ def create_instagram_template(data, template='vertical'):
         
         status_x = WIDTH - MARGIN - status_width
         
-        draw.rounded_rectangle(
-            [(status_x, right_badge_y), (WIDTH - MARGIN, right_badge_y + status_height)],
-            radius=8,
-            fill=BLUE_COLOR
-        )
-        draw.text((status_x + 10, right_badge_y + 8), status_text, font=fonts['badge_right'], fill=WHITE)
+        draw_badge_with_shadow(draw, status_x, right_badge_y, status_width, status_height, BLUE_COLOR, status_text, fonts['badge_right'])
         
         right_badge_y = right_badge_y + status_height + badge_spacing
     
     # 5. Distance to beach badge (blue)
     distance = data.get('distance_to_beach', '')
     if distance:
+        logger.info(f"Drawing distance_to_beach badge: {distance}")
         dist_text = f" {distance} "
         bbox = draw.textbbox((0, 0), dist_text, font=fonts['badge_right'])
         dist_width = bbox[2] - bbox[0] + 20
@@ -379,12 +472,7 @@ def create_instagram_template(data, template='vertical'):
         
         dist_x = WIDTH - MARGIN - dist_width
         
-        draw.rounded_rectangle(
-            [(dist_x, right_badge_y), (WIDTH - MARGIN, right_badge_y + dist_height)],
-            radius=8,
-            fill=BLUE_COLOR
-        )
-        draw.text((dist_x + 10, right_badge_y + 8), dist_text, font=fonts['badge_right'], fill=WHITE)
+        draw_badge_with_shadow(draw, dist_x, right_badge_y, dist_width, dist_height, BLUE_COLOR, dist_text, fonts['badge_right'])
     
     # Bottom content - Title and Price (moved up by 56px total)
     bottom_y = HEIGHT - 236  # Was 216, now 236 (20px higher)
@@ -392,6 +480,7 @@ def create_instagram_template(data, template='vertical'):
     # Title (UPPERCASE)
     title = data.get('title', '').upper()
     if title:
+        logger.info(f"Drawing title: {title}")
         # Wrap text if too long
         max_width = WIDTH - 2 * MARGIN - 200  # Leave space for logo
         words = title.split()
@@ -425,12 +514,7 @@ def create_instagram_template(data, template='vertical'):
             draw.text((MARGIN, line_y), line, font=fonts['large'], fill=WHITE)
             line_y += line_spacing
     
-    # Price
-    price = data.get('price', '')
-    if price:
-        price_y = bottom_y + 70
-        draw.text((MARGIN, price_y), price, font=fonts['medium'], fill=WHITE)
-    
+    # Price removed - price is already shown in caption text
     # NAS-A HOMES Logo (position based on logo_position parameter)
     logo_url = data.get('logo_url', '')
     logo_position = data.get('logo_position', 'bottom-left')
@@ -468,6 +552,7 @@ def create_instagram_template(data, template='vertical'):
     
     # Download and paste logo image with radial gradient
     if logo_url:
+        logger.info(f"Downloading and placing logo: {logo_url[:80]}...")
         logo_img = download_logo(logo_url)
         if logo_img:
             # Create circular logo with radial gradient fade
@@ -475,6 +560,11 @@ def create_instagram_template(data, template='vertical'):
             
             # Paste onto template
             template_img.paste(circular_logo, (logo_x, logo_y), circular_logo)
+            logger.info(f"Logo placed at ({logo_x}, {logo_y})")
+        else:
+            logger.warning("Failed to download logo")
+    else:
+        logger.warning("No logo_url provided")
     
     # Draw NAS-A text next to logo
     draw.text((text_x, text_y), "NAS-A", font=fonts['brand'], fill=WHITE)
@@ -488,17 +578,18 @@ def create_instagram_template(data, template='vertical'):
     sub_y = text_y + 45
     draw.text((text_x, sub_y), "REAL ESTATE & INVEST", font=fonts['brand_small'], fill=GRAY)
     
-    # Phone number on the right (same size as brand)
+    # Phone number - moved below subtitle to avoid overlap with logo
     phone = "+90 542 174 00 29"
-    phone_bbox = draw.textbbox((0, 0), phone, font=fonts['brand'])
+    phone_bbox = draw.textbbox((0, 0), phone, font=fonts['brand_small'])
     phone_width = phone_bbox[2] - phone_bbox[0]
     phone_x = WIDTH - logo_margin - phone_width
-    phone_y = text_y
-    draw.text((phone_x, phone_y), phone, font=fonts['brand'], fill=WHITE)
+    phone_y = sub_y + 25  # Below subtitle line
+    draw.text((phone_x, phone_y), phone, font=fonts['brand_small'], fill=WHITE)
     
     # Convert to RGB for saving
     final_img = template_img.convert('RGB')
     
+    logger.info("Template created successfully")
     return final_img
 
 @app.route('/generate', methods=['POST'])
@@ -506,19 +597,34 @@ def generate():
     """Generate Instagram template image"""
     try:
         data = request.get_json()
+        logger.info(f"/generate called with data keys: {list(data.keys()) if data else 'None'}")
         
         if not data:
+            logger.error("No data provided")
             return jsonify({'error': 'No data provided'}), 400
+        
+        # Debug all received data
+        logger.info(f"RECEIVED DATA DUMP:")
+        logger.info(f"  apply_template raw value: {data.get('apply_template')} (type: {type(data.get('apply_template'))})")
+        logger.info(f"  label: '{data.get('label', '')}'")
+        logger.info(f"  property_type: '{data.get('property_type', '')}'")
+        logger.info(f"  property_status: '{data.get('property_status', '')}'")
+        logger.info(f"  city: '{data.get('city', '')}'")
+        logger.info(f"  price: '{data.get('price', '')}'")
         
         # Required fields
         if not data.get('image_url'):
+            logger.error("No image_url provided")
             return jsonify({'error': 'image_url is required'}), 400
         
         # Generate template
         template_type = data.get('template', 'vertical')
+        logger.info(f"Generating template: {template_type}")
+        
         img = create_instagram_template(data, template_type)
         
         if not img:
+            logger.error("Failed to generate image")
             return jsonify({'error': 'Failed to generate image'}), 500
         
         # Save to temporary file
@@ -526,12 +632,16 @@ def generate():
         img.save(temp_file.name, 'JPEG', quality=95)
         temp_file.close()
         
+        logger.info(f"Image saved to temp file: {temp_file.name}")
+        
         # Read and encode to base64
         with open(temp_file.name, 'rb') as f:
             img_data = f.read()
         
         # Clean up temp file
         os.unlink(temp_file.name)
+        
+        logger.info(f"Image encoded to base64, size: {len(img_data)} bytes")
         
         # Return base64 encoded image
         base64_image = base64.b64encode(img_data).decode('utf-8')
@@ -542,6 +652,7 @@ def generate():
         })
         
     except Exception as e:
+        logger.exception("Error in /generate")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/telegram/webhook', methods=['POST'])
@@ -550,18 +661,24 @@ def telegram_webhook():
     if TG_WEBHOOK_SECRET:
         secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
         if secret != TG_WEBHOOK_SECRET:
+            logger.warning(f"Invalid webhook secret: {secret}")
             return jsonify({"ok": False, "error": "invalid secret"}), 403
 
     update = request.get_json(silent=True) or {}
+    logger.info(f"Webhook received: {update.get('update_id', 'N/A')}")
+    
     message = update.get("message") or update.get("edited_message")
 
     if not message:
+        logger.info("No message in update")
         return jsonify({"ok": True})
 
     chat = message.get("chat") or {}
     chat_id = chat.get("id")
     message_id = message.get("message_id")
     text = (message.get("text") or "").strip()
+    
+    logger.info(f"Message from chat_id={chat_id}: {text[:50]}")
 
     if not chat_id or not text.startswith("/"):
         return jsonify({"ok": True})
@@ -587,4 +704,4 @@ def health():
     return jsonify({'status': 'ok'})
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 5000)))
