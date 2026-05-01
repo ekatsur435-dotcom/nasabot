@@ -603,6 +603,16 @@ def generate():
             logger.error("No data provided")
             return jsonify({'error': 'No data provided'}), 400
         
+        # Debug all received data
+        logger.info(f"RECEIVED DATA DUMP:")
+        logger.info(f"  apply_template raw value: {data.get('apply_template')} (type: {type(data.get('apply_template'))})")
+        logger.info(f"  apply_template repr: {repr(data.get('apply_template'))}")
+        logger.info(f"  label: '{data.get('label', '')}'")
+        logger.info(f"  property_type: '{data.get('property_type', '')}'")
+        logger.info(f"  property_status: '{data.get('property_status', '')}'")
+        logger.info(f"  city: '{data.get('city', '')}'")
+        logger.info(f"  price: '{data.get('price', '')}'")
+        
         # Required fields
         if not data.get('image_url'):
             logger.error("No image_url provided")
