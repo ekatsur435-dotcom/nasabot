@@ -302,11 +302,16 @@ def create_instagram_template(data, template='vertical'):
     # Handle both string and boolean values
     apply_template_raw = data.get('apply_template', True)
     if isinstance(apply_template_raw, str):
-        apply_template = apply_template_raw.lower() in ('true', '1', 'yes')
+        apply_template = apply_template_raw.lower() in ('true', '1', 'yes', 'on')
+    elif isinstance(apply_template_raw, (int, float)):
+        apply_template = bool(apply_template_raw)
     else:
         apply_template = bool(apply_template_raw)
     
     logger.info(f"apply_template raw={apply_template_raw}, parsed={apply_template}")
+    
+    # Debug badge data
+    logger.info(f"Badge data - label: '{data.get('label', '')}', city: '{data.get('city', '')}', type: '{data.get('property_type', '')}', status: '{data.get('property_status', '')}'")
     
     # Set dimensions
     if template == 'stories':
