@@ -378,8 +378,25 @@ def create_instagram_template(data, template='vertical'):
     
     MARGIN = 40
     
-    # Starting Y position for badges
-    badge_y = MARGIN
+    # Starting Y position for badges - moved down for better visibility
+    badge_y = MARGIN + 60  # Lower position to avoid top edge
+    
+    # Helper function to draw badge with shadow
+    def draw_badge_with_shadow(draw, x, y, width, height, fill_color, text, font, text_color=WHITE):
+        # Shadow (offset by 2px)
+        draw.rounded_rectangle(
+            [(x + 2, y + 2), (x + width + 2, y + height + 2)],
+            radius=8,
+            fill=(0, 0, 0, 128)
+        )
+        # Main badge
+        draw.rounded_rectangle(
+            [(x, y), (x + width, y + height)],
+            radius=8,
+            fill=fill_color
+        )
+        # Text
+        draw.text((x + 10, y + 8), text, font=font, fill=text_color)
     
     # 1. Label badge (green) - left side
     label = data.get('label', '')
@@ -390,12 +407,7 @@ def create_instagram_template(data, template='vertical'):
         badge_width = bbox[2] - bbox[0] + 20
         badge_height = bbox[3] - bbox[1] + 16
         
-        draw.rounded_rectangle(
-            [(MARGIN, badge_y), (MARGIN + badge_width, badge_y + badge_height)],
-            radius=8,
-            fill=GREEN_COLOR
-        )
-        draw.text((MARGIN + 10, badge_y + 8), badge_text, font=fonts['badge_top'], fill=WHITE)
+        draw_badge_with_shadow(draw, MARGIN, badge_y, badge_width, badge_height, GREEN_COLOR, badge_text, fonts['badge_top'])
         
         badge_y = badge_y + badge_height + 10
     
@@ -408,15 +420,10 @@ def create_instagram_template(data, template='vertical'):
         city_badge_width = bbox[2] - bbox[0] + 20
         city_badge_height = bbox[3] - bbox[1] + 16
         
-        draw.rounded_rectangle(
-            [(MARGIN, badge_y), (MARGIN + city_badge_width, badge_y + city_badge_height)],
-            radius=8,
-            fill=GREEN_COLOR
-        )
-        draw.text((MARGIN + 10, badge_y + 8), city_badge_text, font=fonts['badge_top'], fill=WHITE)
+        draw_badge_with_shadow(draw, MARGIN, badge_y, city_badge_width, city_badge_height, GREEN_COLOR, city_badge_text, fonts['badge_top'])
     
     # Right side badges
-    right_badge_y = MARGIN
+    right_badge_y = MARGIN + 60  # Same lower position
     badge_spacing = 10
     
     # 3. Villa badge (blue)
@@ -430,12 +437,7 @@ def create_instagram_template(data, template='vertical'):
         
         villa_x = WIDTH - MARGIN - villa_width
         
-        draw.rounded_rectangle(
-            [(villa_x, right_badge_y), (WIDTH - MARGIN, right_badge_y + villa_height)],
-            radius=8,
-            fill=BLUE_COLOR
-        )
-        draw.text((villa_x + 10, right_badge_y + 8), villa_text, font=fonts['badge_right'], fill=WHITE)
+        draw_badge_with_shadow(draw, villa_x, right_badge_y, villa_width, villa_height, BLUE_COLOR, villa_text, fonts['badge_right'])
         
         right_badge_y = right_badge_y + villa_height + badge_spacing
     
@@ -450,12 +452,7 @@ def create_instagram_template(data, template='vertical'):
         
         status_x = WIDTH - MARGIN - status_width
         
-        draw.rounded_rectangle(
-            [(status_x, right_badge_y), (WIDTH - MARGIN, right_badge_y + status_height)],
-            radius=8,
-            fill=BLUE_COLOR
-        )
-        draw.text((status_x + 10, right_badge_y + 8), status_text, font=fonts['badge_right'], fill=WHITE)
+        draw_badge_with_shadow(draw, status_x, right_badge_y, status_width, status_height, BLUE_COLOR, status_text, fonts['badge_right'])
         
         right_badge_y = right_badge_y + status_height + badge_spacing
     
@@ -470,12 +467,7 @@ def create_instagram_template(data, template='vertical'):
         
         dist_x = WIDTH - MARGIN - dist_width
         
-        draw.rounded_rectangle(
-            [(dist_x, right_badge_y), (WIDTH - MARGIN, right_badge_y + dist_height)],
-            radius=8,
-            fill=BLUE_COLOR
-        )
-        draw.text((dist_x + 10, right_badge_y + 8), dist_text, font=fonts['badge_right'], fill=WHITE)
+        draw_badge_with_shadow(draw, dist_x, right_badge_y, dist_width, dist_height, BLUE_COLOR, dist_text, fonts['badge_right'])
     
     # Bottom content - Title and Price (moved up by 56px total)
     bottom_y = HEIGHT - 236  # Was 216, now 236 (20px higher)
@@ -517,13 +509,7 @@ def create_instagram_template(data, template='vertical'):
             draw.text((MARGIN, line_y), line, font=fonts['large'], fill=WHITE)
             line_y += line_spacing
     
-    # Price
-    price = data.get('price', '')
-    if price:
-        logger.info(f"Drawing price: {price}")
-        price_y = bottom_y + 70
-        draw.text((MARGIN, price_y), price, font=fonts['medium'], fill=WHITE)
-    
+    # Price removed - price is already shown in caption text
     # NAS-A HOMES Logo (position based on logo_position parameter)
     logo_url = data.get('logo_url', '')
     logo_position = data.get('logo_position', 'bottom-left')
